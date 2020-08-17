@@ -1,12 +1,16 @@
-import cv2
+"""
+this is a demo for processing video data.
+"""
+
 import time
 import argparse
 import os
-import torch
 import csv
 
-import posenet
+import torch
+import cv2
 
+import posenet
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=int, default=101)
@@ -97,31 +101,38 @@ def main():
         if not args.notxt:
             print()
             print("Results for frame: %s" % frame_count)
-            for pi in range(len(pose_scores)):
-                if pose_scores[pi] == 0.0:
+            for (pose_index, score) in enumerate(pose_scores):
+                if score == 0.0:
                     break
-                print("Pose #%d, score = %f" % (pi, pose_scores[pi]))
-                for ki, (s, c) in enumerate(
-                    zip(keypoint_scores[pi, :], keypoint_coords[pi, :, :])
+                print("Pose #%d, score = %f" % (pose_index, score))
+                for keypoint_index, (keypoint_score, keypoint_coords) in enumerate(
+                    zip(
+                        keypoint_scores[pose_index, :],
+                        keypoint_coords[pose_index, :, :],
+                    )
                 ):
                     print(
                         "Keypoint %s, score = %f, coord = %s"
-                        % (posenet.PART_NAMES[ki], s, c)
+                        % (
+                            posenet.PART_NAMES[keypoint_index],
+                            keypoint_score,
+                            keypoint_coords,
+                        )
                     )
 
-        for pi in range(len(pose_scores)):
-            if pose_scores[pi] == 0.0:
+        for (pose_index, score) in enumerate(pose_scores):
+            if pose_scores[pose_index] == 0.0:
                 break
             csv_dict = {}
             csv_dict["frame"] = frame_count
-            csv_dict["score"] = pose_scores[pi]
-            for ki, (s, c) in enumerate(
-                zip(keypoint_scores[pi, :], keypoint_coords[pi, :, :])
+            csv_dict["score"] = pose_scores[pose_index]
+            for keypoint_index, (keypoint_score, keypoint_coords) in enumerate(
+                zip(keypoint_scores[pose_index, :], keypoint_coords[pose_index, :, :],)
             ):
-                part_name = posenet.PART_NAMES[ki]
-                csv_dict[f"{part_name}_score"] = s
-                csv_dict[f"{part_name}_x"] = c[0]
-                csv_dict[f"{part_name}_y"] = c[1]
+                part_name = posenet.PART_NAMES[keypoint_index]
+                csv_dict[f"{part_name}_score"] = keypoint_score
+                csv_dict[f"{part_name}_x"] = keypoint_coords[0]
+                csv_dict[f"{part_name}_y"] = keypoint_coords[1]
             data_list.append(csv_dict)
 
         frame_count += 1
@@ -129,9 +140,9 @@ def main():
     if data_list:
         file_path = args.keypoint
         with open(file_path, "w", encoding="utf8", newline="") as output_file:
-            fc = csv.DictWriter(output_file, fieldnames=data_list[0].keys())
-            fc.writeheader()
-            fc.writerows(data_list)
+            csv_writer = csv.DictWriter(output_file, fieldnames=data_list[0].keys())
+            csv_writer.writeheader()
+            csv_writer.writerows(data_list)
 
     cap.release()
     print("Average FPS:", frame_count / (time.time() - start))
