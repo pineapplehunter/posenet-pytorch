@@ -3,6 +3,7 @@ import time
 import argparse
 import os
 import torch
+import csv
 
 import posenet
 
@@ -11,8 +12,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--model', type=int, default=101)
 parser.add_argument('--scale_factor', type=float, default=1.0)
 parser.add_argument('--notxt', action='store_true')
-parser.add_argument('--image_dir', type=str, default='./images')
-parser.add_argument('--output_dir', type=str, default='./output')
+parser.add_argument('--image-dir', type=str, default='./images')
+parser.add_argument('--output-dir', type=str, default='./output')
+parser.add_argument('--keypoint-out-dir', type=str, default='./keypoint')
 args = parser.parse_args()
 
 
@@ -25,6 +27,10 @@ def main():
         if not os.path.exists(args.output_dir):
             os.makedirs(args.output_dir)
 
+    if args.keypoint_out_dir:
+        if not os.path.exists(args.keypoint_out_dir):
+            os.makedirs(args.keypoint_out_dir)
+
     filenames = [
         f.path for f in os.scandir(args.image_dir) if f.is_file() and f.path.endswith(('.png', '.jpg'))]
 
@@ -36,7 +42,8 @@ def main():
         with torch.no_grad():
             input_image = torch.Tensor(input_image).cuda()
 
-            heatmaps_result, offsets_result, displacement_fwd_result, displacement_bwd_result = model(input_image)
+            heatmaps_result, offsets_result, displacement_fwd_result, displacement_bwd_result = model(
+                input_image)
 
             pose_scores, keypoint_scores, keypoint_coords = posenet.decode_multiple_poses(
                 heatmaps_result.squeeze(0),
@@ -54,7 +61,8 @@ def main():
                 draw_image, pose_scores, keypoint_scores, keypoint_coords,
                 min_pose_score=0.25, min_part_score=0.25)
 
-            cv2.imwrite(os.path.join(args.output_dir, os.path.relpath(f, args.image_dir)), draw_image)
+            cv2.imwrite(os.path.join(args.output_dir,
+                                     os.path.relpath(f, args.image_dir)), draw_image)
 
         if not args.notxt:
             print()
@@ -64,7 +72,30 @@ def main():
                     break
                 print('Pose #%d, score = %f' % (pi, pose_scores[pi]))
                 for ki, (s, c) in enumerate(zip(keypoint_scores[pi, :], keypoint_coords[pi, :, :])):
-                    print('Keypoint %s, score = %f, coord = %s' % (posenet.PART_NAMES[ki], s, c))
+                    print('Keypoint %s, score = %f, coord = %s' %
+                          (posenet.PART_NAMES[ki], s, c))
+
+        data_list = []
+        for pi in range(len(pose_scores)):
+            if pose_scores[pi] == 0.:
+                break
+            csv_dict = {}
+            csv_dict["score"] = pose_scores[pi]
+            for ki, (s, c) in enumerate(zip(keypoint_scores[pi, :], keypoint_coords[pi, :, :])):
+                part_name = posenet.PART_NAMES[ki]
+                csv_dict[f"{part_name}_score"] = s
+                csv_dict[f"{part_name}_x"] = c[0]
+                csv_dict[f"{part_name}_y"] = c[1]
+            data_list.append(csv_dict)
+
+        if data_list:
+            file_path = os.path.join(
+                args.keypoint_out_dir, os.path.relpath(f, args.image_dir)) + ".csv"
+            with open(file_path, 'w', encoding='utf8', newline='') as output_file:
+                fc = csv.DictWriter(
+                    output_file, fieldnames=data_list[0].keys())
+                fc.writeheader()
+                fc.writerows(data_list)
 
     print('Average FPS:', len(filenames) / (time.time() - start))
 
