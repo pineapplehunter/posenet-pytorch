@@ -105,7 +105,7 @@ def main():
                 if score == 0.0:
                     break
                 print("Pose #%d, score = %f" % (pose_index, score))
-                for keypoint_index, (keypoint_score, keypoint_coords) in enumerate(
+                for kindex, (kscore, kcoord) in enumerate(
                     zip(
                         keypoint_scores[pose_index, :],
                         keypoint_coords[pose_index, :, :],
@@ -113,11 +113,7 @@ def main():
                 ):
                     print(
                         "Keypoint %s, score = %f, coord = %s"
-                        % (
-                            posenet.PART_NAMES[keypoint_index],
-                            keypoint_score,
-                            keypoint_coords,
-                        )
+                        % (posenet.PART_NAMES[kindex], kscore, kcoord,)
                     )
 
         for (pose_index, score) in enumerate(pose_scores):
@@ -126,13 +122,13 @@ def main():
             csv_dict = {}
             csv_dict["frame"] = frame_count
             csv_dict["score"] = pose_scores[pose_index]
-            for keypoint_index, (keypoint_score, keypoint_coords) in enumerate(
+            for kindex, (kscore, kcoord) in enumerate(
                 zip(keypoint_scores[pose_index, :], keypoint_coords[pose_index, :, :],)
             ):
-                part_name = posenet.PART_NAMES[keypoint_index]
-                csv_dict[f"{part_name}_score"] = keypoint_score
-                csv_dict[f"{part_name}_x"] = keypoint_coords[0]
-                csv_dict[f"{part_name}_y"] = keypoint_coords[1]
+                part_name = posenet.PART_NAMES[kindex]
+                csv_dict[f"{part_name}_score"] = kscore
+                csv_dict[f"{part_name}_x"] = kcoord[0]
+                csv_dict[f"{part_name}_y"] = kcoord[1]
             data_list.append(csv_dict)
 
         frame_count += 1
